@@ -16,6 +16,7 @@ from tkinter import messagebox
 import tkinter.font as font
 import os
 import webbrowser
+from langdetect import detect
 
 # Constants:
 VERBOSE_MODE = False # If true, prints specific logs in the code (for debugging)
@@ -32,7 +33,7 @@ def create_overlay_text():
     root.configure(bg="#010311")
     
     root.title("Overlyrics")
-    root.iconbitmap(default="icons/overlyrics-icon.ico")
+    # root.iconbitmap(default="icons/overlyrics-icon.ico")
 
     try:  # Try to load the custom font
         custom_font = font.Font(family="Public Sans", size="22", weight="normal")
@@ -57,7 +58,9 @@ def create_overlay_text():
 
     elif root.tk.call("tk", "windowingsystem") == "aqua":
         # For macOS, we use the attribute -transparentcolor
-        root.attributes("-transparentcolor", "#010311")  # NOTE: not tested
+        # root.attributes("-transparentcolor", "-alpha")  # NOTE: not tested
+        # root.attributes("-topmost", 1.0)
+        root.attributes("-transparent", True)
 
     # Allows to drag the window:
     drag_start_x = 0
@@ -108,7 +111,6 @@ def update_overlay_text():
 
 def getCurrentTrackInfo():
     current_track = sp.current_user_playing_track() # Get the information of the music being listened to, through the API
-    
     # Check if there is music playing
     if current_track is None or (current_track['item'] is None):
         return None  # No track is currently playing
@@ -120,7 +122,7 @@ def getCurrentTrackInfo():
     track_name = current_track['item']['name']
     is_playing = current_track['is_playing']
     progress_ms = current_track['progress_ms']
-    
+
     # Convert progress_ms to minutes and seconds
     progress_sec = progress_ms // 1000
     progress_min = progress_sec // 60
@@ -227,7 +229,17 @@ def display_lyrics(trackName, artistName, currentProgress, isPaused):
             update_track_event.clear()
 
             searchTerm = "{} {}".format(trackName, artistName)
-            lyrics = syncedlyrics.search(searchTerm)
+            # searchTerm = "{} {}".format(artistName, trackName)
+
+            providers = ["Musixmatch", "Megalobiz", "Lrclib"]
+            lang =detect(trackName)
+            if lang in ["zh-cn", "zh-tw", "ko"]:
+                providers.reverse()
+
+            for provider in providers:
+                lyrics = syncedlyrics.search(searchTerm, providers=[provider])
+                if lyrics:
+                    break
 
             if (lyrics is None or lyrics.isspace()):
                 print("Track not found.") if VERBOSE_MODE else None
@@ -247,8 +259,10 @@ def display_lyrics(trackName, artistName, currentProgress, isPaused):
 
 def spotipyAutenthication():
     # Descontinuado/Deprecated (needs the client_secret, which can't be exposed):
-    #sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id="7710e2a5ffe241fd908c556a08452341", client_secret="<SECRET>", 
-    # redirect_uri="https://google.com", scope="user-library-read, user-read-playback-state"))
+    # sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
+    #     client_id="0ec36cefaf4d4edebe5c46d7d6537cee", client_secret="6c52a23e26d2411c9ccf6a1d3f587d91", 
+    #     redirect_uri="http://localhost:8000/callback/", scope="user-library-read, user-read-playback-state"
+    #     ))
     def authWindowToGetAuthCode():
         def paste_from_clipboard(): # Handle of copy/paste button
             clipboard_content = authWindow.clipboard_get()
@@ -263,7 +277,7 @@ def spotipyAutenthication():
         auth_code = None
 
         authWindow = tk.Tk()
-        authWindow.iconbitmap(default="icons/overlyrics-icon.ico")
+        # authWindow.iconbitmap(default="icons/overlyrics-icon.ico")
         authWindow.title("Overlyrics: autenticação")
 
         try:  # Trying to load the custom font from the ttf file
@@ -343,9 +357,15 @@ def spotipyAutenthication():
         
         return access_token
 
-    authManager = spotipy.oauth2.SpotifyPKCE(client_id="7710e2a5ffe241fd908c556a08452341", 
-                                redirect_uri="https://cezargab.github.io/Overlyrics", 
-                                scope="user-read-playback-state",
+    authManager = spotipy.oauth2.SpotifyPKCE(
+        # name = "stupidho96@gmail.com"
+        client_id = "0ec36cefaf4d4edebe5c46d7d6537cee",
+        client_secret = "6c52a23e26d2411c9ccf6a1d3f587d91",
+        scope = "user-read-playback-state",
+        redirect_uri = "http://localhost:8000/callback/",
+        # client_id="7710e2a5ffe241fd908c556a08452341", 
+                                # redirect_uri="https://cezargab.github.io/Overlyrics", 
+                                # scope="user-read-playback-state",
                                 cache_handler= spotipy.CacheFileHandler(".cache_sp"),
                                 open_browser=True)
 
@@ -387,7 +407,11 @@ parsed_lyrics = {}
 time_str = ""
 timestampsInSeconds = []
 
-sp = spotipyAutenthication()
+# sp = spotipyAutenthication()
+sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
+    client_id="0ec36cefaf4d4edebe5c46d7d6537cee", client_secret="6c52a23e26d2411c9ccf6a1d3f587d91", 
+    redirect_uri="http://localhost:8000/callback/", scope="user-library-read, user-read-playback-state"
+    ))
 
 overlay_root, overlay_text, overlay_image = create_overlay_text()
 overlay_root.update()
